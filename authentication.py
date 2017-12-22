@@ -8,9 +8,9 @@ class Authentication:  # handles authentication of incoming & outgoing messages
 
     # --- INSTANCE METHODS
     def __init__(self):
-        self.__microsoft_app_name = "Standardized Patient Bot"  # bot name
-        self.__microsoft_app_id = "b385ba32-44b3-467e-a578-8f642e0e3cb3"  # app ID generated during registration
-        self.__microsoft_app_password = "2Qut0CR8smLibDMTraNxULn"  # password generated during registration
+        self.__microsoft_app_name = "Diagnostic Bot"  # bot name
+        self.__microsoft_app_id = "9bdf3a9f-933d-4fc3-b8e6-22d1dba5943b"  # app ID generated during registration
+        self.__microsoft_app_password = "wjaUSHJX137(!%hbmkAX51!"  # password generated during registration
 
         self.__active_token = None  # init the server's active Authorization token (1 for the entire server!)
         self.__token_timeout = None  # keep track of the time @ which the token expires
