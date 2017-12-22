@@ -2,7 +2,6 @@ import json
 from tornado.httpclient import AsyncHTTPClient
 from urllib.parse import quote_plus
 from scope import Scope
-from patient.patient import Substance
 
 class LUIS:  # handles interaction with LUIS framework
 
