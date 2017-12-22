@@ -1,0 +1,1 @@
+# Class that processes information to come to a diagnosis
