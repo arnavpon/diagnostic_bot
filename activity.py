@@ -4,13 +4,13 @@ import re
 from pprint import pprint
 from LUIS import LUIS
 
-UPDATED_POSITION = None  # indicator used to prevent backwards actions in conversation flow
+UPDATED_POSITION = 0  # indicator used to prevent backwards actions in conversation flow
 
 class Activity():  # class that defines behavior for Bot Framework 'Activity'
 
     PAGE_ACCESS_TOKEN = "EAAD7sZBOYsK4BAJt95X17v6ZCstfHi3UgUkJZCcetgVEJpH6tFN5Ju3zQ2CTXJ" \
                         "M35o8gteO17Ixk5N96gQxUIJug5IsjSozCEogiuqgKQEfWGMf9HlIABFyC7wC4cRkugwaLssad" \
-                        "9AVuPFXkw6muELn9jljXmL964bqvZCvioQZDZD"  # token to access FB page
+                        "9AVuPFXkw6muELn9jljXmL964bqvZCvioQZDZD"  # token to access FB page *** update
 
     # --- INITIALIZERS ---
     def __init__(self, db_handler, authenticator, post_body, position, user):  # initializer

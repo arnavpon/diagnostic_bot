@@ -137,8 +137,8 @@ class DatabaseHandler:
     def getPositionInFlow(self, conversation):  # returns current position for conversation
         record = self.__db.conversations.find_one({"conversation": conversation})  # check if conversation is in DB
         if record:  # conversation ALREADY exists
-            return record.get("position", None)  # pass back the position
-        return None
+            return record.get("position", 0)  # pass back the position
+        return 0  # default -> 0
 
     def getUsername(self, conversation):  # returns the Username if it exists
         record = self.__db.conversations.find_one({"conversation": conversation})  # check if conversation is in DB
