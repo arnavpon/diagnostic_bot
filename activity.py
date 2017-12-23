@@ -1,138 +1,102 @@
-# Class that defines behavior for Bot Framework 'Activity'
-
 import requests
 import json
 import re
-from random import randint
 from pprint import pprint
 from LUIS import LUIS
 
 UPDATED_POSITION = None  # indicator used to prevent backwards actions in conversation flow
 
-class Activity():
+class Activity():  # class that defines behavior for Bot Framework 'Activity'
 
     PAGE_ACCESS_TOKEN = "EAAD7sZBOYsK4BAJt95X17v6ZCstfHi3UgUkJZCcetgVEJpH6tFN5Ju3zQ2CTXJ" \
                         "M35o8gteO17Ixk5N96gQxUIJug5IsjSozCEogiuqgKQEfWGMf9HlIABFyC7wC4cRkugwaLssad" \
                         "9AVuPFXkw6muELn9jljXmL964bqvZCvioQZDZD"  # token to access FB page
 
     # --- INITIALIZERS ---
-    def __init__(self, authenticator, post_body, position, user, patient):  # initializer
+    def __init__(self, db_handler, authenticator, post_body, position, user):  # initializer
         pprint(post_body)  # output JSON from bot client
+        self.__db_handler = db_handler  # store the db interaction handler
         self.__authenticator = authenticator  # store the <Authentication> object
-        self.__postBody = post_body  # store the POST data
+        self.__post_body = post_body  # store the POST data
         self.__conversation_id = post_body['conversation']['id']  # get conversation ID (needed to construct URL)
         self.__channel_id = post_body.get("channelId", None)  # channel the user is accessing bot with
-        self.__patient = patient  # initialize <Patient> object w/ passed-in argument
         self.__action_required = False  # indicator that outgoing message will contain an ACTION
         self.__user_name = user  # name of user (used for personalization)
         global UPDATED_POSITION  # indicator that is referenced by the server to keep track of current flow position
 
-        if position < 0:  # indicator that interaction is closed & user is receiving FEEDBACK
-            feedback_handler = FeedbackModule(self, position)  # init w/ <Activity> instance & position in flow
-            UPDATED_POSITION = feedback_handler.getPosition()  # obtain position from handler
+        if position < 0:  # indicator that interaction is closed
+            pass
         elif position == 0:  # INITIAL interaction - send introductory options
             self.initializeBot()
         else:  # get the activity type, use it to handle what methods are performed
             self.activityType = post_body['type']
             quick_reply = None  # for Facebook quick reply data
-            if 'channelData' in self.__postBody:  # make sure quick reply exists
-                if 'message' in self.__postBody['channelData']:
-                    if 'quick_reply' in self.__postBody['channelData']['message']:
-                        if 'payload' in self.__postBody['channelData']['message']['quick_reply']:
-                            quick_reply = self.__postBody['channelData']['message']['quick_reply']['payload']
+            if 'channelData' in self.__post_body:  # check if quick reply exists
+                if 'message' in self.__post_body['channelData']:
+                    if 'quick_reply' in self.__post_body['channelData']['message']:
+                        if 'payload' in self.__post_body['channelData']['message']['quick_reply']:
+                            quick_reply = self.__post_body['channelData']['message']['quick_reply']['payload']
 
             if self.activityType == "message":  # POST a response to the message to the designated URL
-                if ("text" in self.__postBody) and (self.__patient is not None):  # user sent TEXT message
-                    received_text = self.__postBody.get('text')
+                if "text" in self.__post_body:  # user sent TEXT message
+                    received_text = self.__post_body.get('text')
                     if received_text.strip().upper() == "END ENCOUNTER":  # close the encounter
-                        feedback_handler = FeedbackModule(self, 0)  # init Feedback Module object to handle next step
-                        UPDATED_POSITION = feedback_handler.getPosition()  # NEGATIVE position => encounter was CLOSED
+                        pass
                     elif received_text.strip().upper() == "RESTART":  # restart from scratch
                         self.initializeBot()  # start bot at position 0 again
                     elif re.match(r'^ERROR', received_text.strip().upper()):  # ERROR reporting
                         issue = received_text.strip()[5:]  # grab the issue
-                        self.__patient.logError(self.__conversation_id, issue)  # log error -> DB
+                        self.__db_handler.logError(self.__conversation_id, issue)  # log error -> DB
                         self.sendTextMessage(text="Issue has been reported. Thank you!")
                     else:  # question for the bot
                         _ = LUIS(received_text, self)  # pass the user's input -> a LUIS object
 
-                elif ("value" in self.__postBody) or (quick_reply is not None):  # card chosen from initial sequence
-                    received_value = self.__postBody.get('value') if quick_reply is None else quick_reply  # selection
+                elif ("value" in self.__post_body) or (quick_reply is not None):  # card chosen from initial sequence
+                    received_value = self.__post_body.get('value') if quick_reply is None else quick_reply  # selection
                     if type(received_value) is str:  # FB messenger passes data as JSON (not as a dict!)
                         received_value = json.loads(received_value)  # convert JSON -> dict
 
                     if ("intro_1" in received_value) and (position == 1):  # 1st intro option
                         received_value = received_value["intro_1"]  # get the dict inside
                         if "option" in received_value:  # user selected RANDOM CASE option
-                            pts = Patient.getAllPatients()
-                            rand_pt = randint(0, (pts.count() - 1))  # generate random # from 0 to (# of patients - 1)
-                            self.initializePatient(id=pts[rand_pt]['_id'])  # randomly select an SP & initialize
+                            pass
                         elif "category" in received_value:  # user selected a CATEGORY (specialty)
-                            cat = received_value['category']  # get the selected category name
-                            ccs_for_cat = Patient.getChiefComplaintsForCategory(cat)  # get CCs for specified category
-                            show_actions = [self.createAction(cc.title(), option_key="intro_2",
-                                                                  option_value={"id": str(_id)})
-                                            for cc, _id in ccs_for_cat]  # create show card actions
-                            body = [
-                                self.createTextBlock("Select a chief complaint:")
-                            ]
-                            actions = [
-                                self.createAction("Random Complaint", option_key="intro_2",
-                                                  option_value={"option": 0, "category": cat}),
-                                self.createAction("Choose by chief complaint", type=1,
-                                                  body=[self.createTextBlock("Select a chief complaint:")],
-                                                  actions=show_actions)
-                            ]
-                            self.sendAdaptiveCardMessage(body=body, actions=actions)  # present 2 new options via card
+                            pass
                         UPDATED_POSITION = 2  # move to next position in flow
                     elif ("intro_2" in received_value) and (position == 2):  # user selected an option from card #2
-                        received_value = received_value["intro_2"]  # obtain the nested dict
-                        if "option" in received_value:  # user chose random case for selected specialty
-                            pts = Patient.getPatientsForCategory(received_value["category"])  # ids for cat
-                            rand_pt = randint(0, (len(pts) - 1))  # generate rand num between 0 & (# of patients - 1)
-                            self.initializePatient(id=pts[rand_pt])  # randomly select an SP & initialize
-                        elif "id" in received_value:  # user selected a patient ID
-                            print("Selected patient with id = {}".format(received_value["id"]))
-                            self.initializePatient(id=received_value["id"])  # randomly select an SP & initialize
                         UPDATED_POSITION = 3  # move to next position in flow
 
-                elif ("text" in self.__postBody) and (self.__patient is None):  # break in flow
-                    self.initializeBot()  # re-initialize
-
     def initializeBot(self):  # renders initial (position = 0) flow for the bot
-        self.__patient = None  # *clear existing patient object to start!*
-        categories = Patient.getAllCategories()  # fetch set of all categories
+        # self.__patient = None  # *clear existing patient object to start!*
+        # categories = Patient.getAllCategories()  # fetch set of all categories
+        #
+        # # Create a list of sub-actions (for the ShowCard) by category:
+        # show_actions = [
+        #     self.createAction(cat.title(), option_key='intro_1', option_value={"category": cat})
+        #     for cat in categories]  # set the selection option -> the category name
+        #
+        # welcome = "Welcome to the Interview Bot"
+        # welcome += ", {}!".format(self.__user_name[0]) if self.__user_name else "!"
+        # body = [
+        #     self.createTextBlock(welcome, size="large", weight="bolder"),
+        #     self.createTextBlock("Please select an option to get started:")
+        # ]
+        # actions = [
+        #     self.createAction("Random Specialty", option_key="intro_1", option_value={"option": 0}),
+        #     self.createAction("Select case by specialty", type=1,
+        #                       body=[self.createTextBlock("Choose by specialty:")],
+        #                       actions=show_actions)
+        # ]
+        # self.sendAdaptiveCardMessage(body=body, actions=actions)  # deliver card -> user
+
         self.getUserProfile()  # attempt to access user's profile ONLY @ initialization time
-
-        # Create a list of sub-actions (for the ShowCard) by category:
-        show_actions = [
-            self.createAction(cat.title(), option_key='intro_1', option_value={"category": cat})
-            for cat in categories]  # set the selection option -> the category name
-
-        welcome = "Welcome to the Interview Bot"
-        welcome += ", {}!".format(self.__user_name[0]) if self.__user_name else "!"
-        body = [
-            self.createTextBlock(welcome, size="large", weight="bolder"),
-            self.createTextBlock("Please select an option to get started:")
-        ]
-        actions = [
-            self.createAction("Random Specialty", option_key="intro_1", option_value={"option": 0}),
-            self.createAction("Select case by specialty", type=1,
-                              body=[self.createTextBlock("Choose by specialty:")],
-                              actions=show_actions)
-        ]
-        self.sendAdaptiveCardMessage(body=body, actions=actions)  # deliver card -> user
-        
+        self.renderIntroductoryMessage()  # send start msg
+        self.__db_handler.logName(self.__conversation_id, self.__user_name)  # log the username -> conversation record
         global UPDATED_POSITION
         UPDATED_POSITION = 1  # update the position to prevent out-of-flow actions
 
-    def initializePatient(self, id):  # initializes Patient object w/ specified ID
-        self.__patient = Patient(id)  # initialize the specified case
-        self.renderIntroductoryMessage()  # send start msg
-        self.__patient.logName(self.__conversation_id, self.__user_name)  # log the user's name -> conversation record
-
     def getPSID(self):  # accesses the sender's ID (PSID) if it exists
-        return self.__postBody['from'].get('id', None) if 'from' in self.__postBody else None
+        return self.__post_body['from'].get('id', None) if 'from' in self.__post_body else None
 
     def getUserProfile(self):  # accesses user's name
         if self.__channel_id == "facebook":
@@ -162,12 +126,12 @@ class Activity():
         self.sendTextMessage(text="1. Type **RESTART** at any time to start a new encounter.\n"
                                   "2. Type **END ENCOUNTER** when you're ready to end the interview & get your score.\n"
                                   "3. Type **ERROR:** followed by a message to report an issue.")
-        self.sendTextMessage(text="Your patient is {}, a **{}** {}-old **{}** complaining of **{}**.\n\n"
-                                  "*You can now begin taking the history.*".format(self.__patient.name,
-                                                                 self.__patient.age[0],
-                                                                 self.__patient.age[1],
-                                                                 self.__patient.gender,
-                                                                 self.__patient.chief_complaint))
+        # self.sendTextMessage(text="Your patient is {}, a **{}** {}-old **{}** complaining of **{}**.\n\n"
+        #                           "*You can now begin taking the history.*".format(self.__patient.name,
+        #                                                          self.__patient.age[0],
+        #                                                          self.__patient.age[1],
+        #                                                          self.__patient.gender,
+        #                                                          self.__patient.chief_complaint))
 
     # --- ADAPTIVE CARD ELEMENTS ---
     def createButton(cls, type=0, title="", value=""):  # creates a BUTTON for HERO card attachment
@@ -216,8 +180,8 @@ class Activity():
         if self.routeDirectToFacebook():  # Facebook messenger channel
             return "https://graph.facebook.com/v2.6/me/messages?access_token={}".format(Activity.PAGE_ACCESS_TOKEN)
         else:  # all other channels
-            serviceURL = self.__postBody['serviceUrl']  # get base URL to return response to
-            activityID = self.__postBody['id']  # get the activityID (needed to construct URL)
+            serviceURL = self.__post_body['serviceUrl']  # get base URL to return response to
+            activityID = self.__post_body['id']  # get the activityID (needed to construct URL)
             returnURL = serviceURL + "/v3/conversations/{}/activities/{}".format(self.__conversation_id, activityID)
             return returnURL
 
@@ -234,17 +198,17 @@ class Activity():
             message_data = {
                 "messaging_type": "RESPONSE",
                 "recipient": {
-                    "id": self.__postBody['from']['id']
+                    "id": self.__post_body['from']['id']
                 }
             }
         else:  # (default) message going through Bot Framework
             message_data = {
                 "type": "message",
-                "locale": self.__postBody.get('locale', 'en-US'),
-                "from": self.__postBody['recipient'],
-                "conversation": self.__postBody['conversation'],
-                "recipient": self.__postBody['from'],
-                "replyToId": self.__postBody['id']
+                "locale": self.__post_body.get('locale', 'en-US'),
+                "from": self.__post_body['recipient'],
+                "conversation": self.__post_body['conversation'],
+                "recipient": self.__post_body['from'],
+                "replyToId": self.__post_body['id']
             }
         return message_data
 
@@ -399,10 +363,9 @@ class Activity():
         global UPDATED_POSITION
         req = requests.post(return_url, data=json.dumps(message_shell), headers=head)  # send response
         print("Sent response to URL: [{}] with code {}".format(return_url, req.status_code))
-        if self.__patient and ('text' in message_shell) and (UPDATED_POSITION > 0):
-            self.__patient.logResponse(self.__conversation_id, message_shell['text'], req.status_code, req.reason)
-        if self.__patient:  # handle blocker SEPARATELY from logging behavior
-            self.__patient.removeBlock(activity=self)  # remove block AFTER sending msg to prep for next query
+        if ('text' in message_shell) and (UPDATED_POSITION > 0):
+            self.__db_handler.logResponse(self.__conversation_id, message_shell['text'], req.status_code, req.reason)
+        self.__db_handler.removeBlock(activity=self)  # remove block AFTER sending msg to prep for next query ***
         if req.status_code != 200:  # check for errors on delivery
             print("[Delivery ERROR] Msg: {}".format(req.json()))
 
@@ -410,11 +373,11 @@ class Activity():
     def getConversationID(self):
         return self.__conversation_id
 
-    def getPatient(self):  # accessor method for patient
-        return self.__patient
+    def getDatabaseHandler(self):  # accessor method for db
+        return self.__db_handler
 
     def getUserName(self):  # accessor method for patient
         return self.__user_name
 
     def getPostData(self):  # accessor method for post data
-        return self.__postBody
+        return self.__post_body

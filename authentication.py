@@ -40,14 +40,14 @@ class Authentication:  # handles authentication of incoming & outgoing messages
             key_index = 0 if (channel_id is None or channel_id == "emulator") \
                 else self.__jwks_by_endorsement[channel_id][0]  # get JWK for channel
             secret = RSAAlgorithm.from_jwk(json.dumps(self.__jwk[key_index]))  # create secret by picking JWK from list
-            connector_iss = "https://api.botframework.com"  # CONNECTOR issuer
-            #emulator_iss = self.__jwk[key_index]['issuer']  # *** EMULATOR only - get issuer | shouldn't work but does
+            #connector_iss = "https://api.botframework.com"  # CONNECTOR issuer
+            emulator_iss = self.__jwk[key_index]['issuer']  # *** EMULATOR only - get issuer | shouldn't work but does
             # emulator_iss = "https://sts.windows.net/f8cdef31-a31e-4b4a-93e4-5f571e91255a/"  # emulator v3.2
             # emulator_iss = "https://sts.windows.net/d6d49420-f39b-4df7-a1dc-d59a935871db/"  # *** EMULATOR v3.1
             token = jwt.decode(token, secret,
                                algorithms=self.__signing_algorithm,
                                audience=self.__microsoft_app_id,
-                               issuer=connector_iss)  # (6) decodes token & VERIFIES JWT signature/audience/issuer
+                               issuer=emulator_iss)  # (6) decodes token & VERIFIES JWT signature/audience/issuer
         except jwt.ImmatureSignatureError:  # signature is NOT YET valid
             print("JWT is still immature, passing through jwt.decode again...")
             return 000  # special internal code to indicate immature JWT
@@ -64,22 +64,22 @@ class Authentication:  # handles authentication of incoming & outgoing messages
             print("[{}] Error decoding JWT - '{}'".format(type(e).__name__, e.args))
             return 403
         else:  # (7) check the token's service URL (must match the Activity serviceUrl)
-            token_url = token.get("serviceUrl", None) # CONNECTOR only
-            if (token_url is not None) and (token_url != service_url):
-                print("Error - Activity serviceURL [{}] does NOT match tokenURL [{}]".format(service_url, token_url))
-                return 403
+            # token_url = token.get("serviceUrl", None) # CONNECTOR only
+            # if (token_url is not None) and (token_url != service_url):
+            #     print("Error - Activity serviceURL [{}] does NOT match tokenURL [{}]".format(service_url, token_url))
+            #     return 403
             #app_id = token.get("appid", None)  # *** EMULATOR only - after update, 'appid' key is no longer in token!
-            #app_id = token.get("azp", None)  # EMULATOR only - AFTER update, access the 'azp' property
-            #if app_id != self.__microsoft_app_id:
-            #    print("Error - appID {} does not match microsoft appID!".format(app_id))
-            #    return 403  # *** EMULATOR only
+            app_id = token.get("azp", None)  # EMULATOR only - AFTER update, access the 'azp' property
+            if app_id != self.__microsoft_app_id:
+               print("Error - appID {} does not match microsoft appID!".format(app_id))
+               return 403  # *** EMULATOR only
         return 200  # if all checks are passed, return 200 OK status
 
     def getSecretKeys(self):  # obtains secret keys from Microsoft's authentication server
         print("Obtaining new JWKs from authentication server...")
         emulator_url = "https://login.microsoftonline.com/botframework.com/v2.0/.well-known/openid-configuration"
         connector_url = "https://login.botframework.com/v1/.well-known/openidconfiguration"
-        request_1 = requests.get(connector_url)  # (1) get openID document
+        request_1 = requests.get(emulator_url)  # (1) get openID document
         request_body = request_1.json()
         self.__signing_algorithm = request_body['id_token_signing_alg_values_supported']
         jwk_uri = request_body['jwks_uri']  # (2) access URI that specifies location of Bot service's signing keys
