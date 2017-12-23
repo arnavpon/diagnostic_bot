@@ -41,9 +41,6 @@ class LUIS:  # handles interaction with LUIS framework
         self.__query = query  # cache the query (*need it to be logged to some data store*)
         self.__activity = activity  # cache the activity
         self.__db_handler = activity.getDatabaseHandler()  # cache the db handler
-
-        # self.__patient = activity.getPatient()  # cache the patient  ***
-
         self.__topIntent = None  # <Intent> with highest probability for query
         self.__intents = []  # <list[Intent]> lists each intent w/ the assigned probability for the query
         self.__entities = []  # <list[Entities]> lists each entity that was found in the query
@@ -111,8 +108,11 @@ class LUIS:  # handles interaction with LUIS framework
             json_data = json.loads(response.body.decode('utf-8'))  # get JSON dict from HTTP body
             altered_query = json_data.get('alteredQuery', None)  # if spell check alters the query
             self.__topIntent = Intent(json_data.get('topScoringIntent', None))  # access the HIGHEST probability intent
-            self.__intents = [Intent(i) for i in json_data.get('intents', [])]  # access each intent & wrap it in class
-            self.__entities = [Entity(e) for e in json_data.get('entities', [])]  # access each intent & wrap in class
+            self.__intents = [Intent(i) for i in json_data.get('intents', list())]  # access each intent & wrap in class
+            self.__entities = [Entity(e) for e in json_data.get('entities', list())]  # access each entity & wrap
+            print("Top Intent: ", self.__topIntent.intent)
+            print(json_data.get('intents', list()))
+            print(json_data.get('entities', list()))
             self.__db_handler.logQueryData(self.__activity.getConversationID(), self.__query,
                                            altered_query=altered_query,
                                            intents=self.__intents, entities=self.__entities)  # log query/LUIS response
