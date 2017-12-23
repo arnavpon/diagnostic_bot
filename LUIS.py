@@ -34,9 +34,13 @@ class LUIS:  # handles interaction with LUIS framework
     # --- INSTANCE METHODS ---
     def __init__(self, query, activity):  # intialize w/ query made by user & activity for the query
         print("\nInitializing LUIS request w/ query=['{}']".format(query))
+        spell_check_api_key = "6c3a7a1cd8f9462bbd54e7b99f11a552"  # expires every 30 days
+        # to get new key, on the LUIS "Publish" page, check the "Enable Bing" box & follow the link...
         luis_enpoint_url = "https://westus.api.cognitive.microsoft.com/luis/v2.0/apps/" \
-                           "1cd07ebb-3a30-4662-a655-bed6d8805aa4?subscription-key=3c42debb60f546b2bf166876a0f1ab0c&" \
-                           "timezoneOffset=0&spellCheck=true&verbose=true&q="
+                           "412ce302-835d-4495-b5ad-6eb5cfddbdcc?subscription-key=3c42debb60f546b2bf166876a0f1ab0c&" \
+                           "spellCheck=true&bing-spell-check-subscription-key={}&" \
+                           "verbose=true&timezoneOffset=0&q=".format(spell_check_api_key)
+
         self.__url = luis_enpoint_url + "{}".format(quote_plus(query))  # append URL FORMATTED query -> final URL
         self.__query = query  # cache the query (*need it to be logged to some data store*)
         self.__activity = activity  # cache the activity
